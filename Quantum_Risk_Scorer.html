@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quantum Risk Prioritisation Engine — Interactive Scorer</title>
+<style>
+  :root {
+    --navy: #1A2E4A;
+    --navy2: #243C5E;
+    --gold: #C8A439;
+    --teal: #0E7C86;
+    --dark: #222830;
+    --gray: #F3F4F6;
+    --lgray: #E1E5EA;
+    --red: #A82E2E;
+    --saffron: #E88A2A;
+    --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: var(--gray);
+    color: var(--dark);
+    padding: 0 0 40px 0;
+  }
+  header {
+    background: linear-gradient(135deg, var(--navy), var(--navy2));
+    color: var(--white);
+    padding: 26px 40px 22px;
+    position: relative;
+  }
+  header h1 { font-size: 26px; font-weight: 700; letter-spacing: .2px; }
+  header h1 .q { color: var(--gold); }
+  header .sub { margin-top: 6px; font-size: 14px; color: var(--lgray); }
+  .stripe { height: 6px; display: flex; }
+  .stripe span { flex: 1; }
+  .stripe .s1 { background: var(--saffron); }
+  .stripe .s2 { background: var(--white); }
+  .stripe .s3 { background: #0A8A4A; }
+  .wrap { max-width: 1320px; margin: 24px auto 0; padding: 0 24px; display: grid; grid-template-columns: 1fr 400px; gap: 22px; align-items: start; }
+  @media (max-width: 1000px) { .wrap { grid-template-columns: 1fr; } }
+
+  /* ---- input cards ---- */
+  .cards { display: flex; flex-direction: column; gap: 14px; }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--lgray);
+    border-radius: 10px;
+    padding: 14px 18px 16px;
+    box-shadow: 0 1px 3px rgba(26,46,74,.08);
+  }
+  .card .head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .card .head h3 { font-size: 16px; font-weight: 700; color: var(--navy); }
+  .card .head .w { font-size: 12px; font-weight: 700; color: var(--white); background: var(--gold); border-radius: 20px; padding: 2px 10px; white-space: nowrap; }
+  .card .desc { font-size: 12px; color: #5A6675; margin: 2px 0 10px; }
+  .rows { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: grid; grid-template-columns: 1.1fr 0.55fr 0.55fr 0.3fr; gap: 8px; align-items: center; }
+  .row .lbl { font-size: 13px; }
+  .lotrow { display: grid; grid-template-columns: 1.1fr 0.55fr 0.55fr 0.55fr 0.3fr; gap: 8px; align-items: center; }
+  .lotrow .lbl { font-size: 13px; }
+  .ciahead { display: grid; grid-template-columns: 1.1fr 0.55fr 0.55fr 0.3fr; gap: 8px; margin-bottom: 2px; }
+  .ciahead .h { font-size: 11px; font-weight: 700; color: var(--navy); letter-spacing: .3px; }
+  .lothead { display: grid; grid-template-columns: 1.1fr 0.55fr 0.55fr 0.55fr 0.3fr; gap: 8px; margin-bottom: 2px; }
+  .lothead .h { font-size: 11px; font-weight: 700; color: var(--navy); letter-spacing: .3px; }
+  .lothead .h { font-size: 11px; font-weight: 700; color: var(--navy); letter-spacing: .3px; }
+  .row .batch { display: flex; gap: 8px; }
+  select, .seg {
+    width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid var(--lgray);
+    border-radius: 6px; background: var(--white); color: var(--dark); font-family: inherit;
+  }
+  label.check { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+  label.check input { width: 15px; height: 15px; accent-color: var(--navy); }
+  .row .val { font-size: 12px; font-weight: 600; color: var(--navy); text-align: right; }
+  .bar { height: 6px; background: var(--lgray); border-radius: 8px; overflow: hidden; margin-top: 9px; }
+  .bar i { display: block; height: 100%; background: var(--gold); border-radius: 8px; transition: width .25s; }
+  .c-ds .bar i { background: var(--teal); }
+
+  /* ---- result panel ---- */
+  .result {
+    background: var(--white); border: 1px solid var(--lgray); border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(26,46,74,.1); position: sticky; top: 16px;
+  }
+  .result .pad { padding: 18px 20px 16px; }
+  .scoreline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .score .num { font-size: 44px; font-weight: 800; color: var(--navy); line-height: 1; }
+  .score .lbl { font-size: 12px; color: #66707D; margin-top: 2px; }
+  .badge {
+    font-size: 15px; font-weight: 800; color: var(--white); border-radius: 8px;
+    padding: 8px 14px; text-align: center; min-width: 120px;
+  }
+  .badge small { display: block; font-size: 11px; font-weight: 600; opacity: .92; margin-top: 2px; }
+  .b-W1 { background: var(--red); } .b-W2 { background: var(--saffron); }
+  .b-W3 { background: var(--gold); color: var(--navy); } .b-W4 { background: var(--teal); }
+
+  .exp-line { font-size: 13px; margin-top: 12px; color: var(--dark); background: var(--gray); border-radius: 8px; padding: 9px 12px; }
+  .exp-line b { color: var(--navy); }
+
+  .segrow { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; margin-top: 12px; font-size: 13px; }
+  .seg { display: flex; background: var(--gray); border-radius: 8px; padding: 3px; gap: 3px; }
+  .seg button {
+    flex: 1; border: 0; background: transparent; padding: 6px 4px; border-radius: 6px; font-size: 12px;
+    font-weight: 600; font-family: inherit; color: var(--dark); cursor: pointer; white-space: nowrap;
+  }
+  .seg button.on { background: var(--navy); color: var(--white); }
+
+  .meter { margin-top: 16px; }
+  .meter .ruler { position: relative; height: 22px; border-radius: 6px; overflow: hidden; display: flex; }
+  .meter .ruler span { flex: 1; }
+  .meter .ruler .z1 { background: var(--red); }
+  .meter .ruler .z2 { background: var(--saffron); }
+  .meter .ruler .z3 { background: var(--gold); }
+  .meter .ruler .z4 { background: var(--teal); }
+  .meter .pin { position: absolute; top: -5px; width: 5px; height: 32px; background: var(--navy); border-radius: 3px; transition: left .25s; box-shadow: 0 0 0 2px var(--white); }
+  .meter .ticks { display: flex; font-size: 11px; color: #66707D; margin-top: 4px; justify-content: space-between; }
+
+  .stack { margin-top: 16px; }
+  .stack .bar { height: 18px; margin: 6px 0 4px; display: flex; border-radius: 6px; overflow: hidden; }
+  .stack .bar span { height: 100%; transition: width .25s; }
+  .stack .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 14px; font-size: 12px; color: #43505F; }
+  .stack .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+
+  .audit { margin-top: 16px; }
+  .audit h4 { font-size: 13px; color: var(--navy); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
+  .audit ol { font-size: 12.5px; color: #43505F; margin-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+  .audit li b { color: var(--navy); }
+  .audit .copy { margin-top: 10px; display: flex; gap: 8px; }
+  .audit button {
+    border: 1px solid var(--navy); background: var(--navy); color: var(--white); font-size: 12px;
+    font-weight: 600; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-family: inherit;
+  }
+  .audit button.ghost { background: var(--white); color: var(--navy); }
+  .audit .out { font-size: 11.5px; font-family: Consolas, monospace; background: var(--gray); padding: 8px; border-radius: 6px; margin-top: 8px; white-space: pre-wrap; display: none; }
+
+  .presets { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .presets button {
+    border: 1px solid var(--lgray); background: var(--white); color: var(--navy); font-size: 12.5px;
+    font-weight: 600; padding: 7px 11px; border-radius: 7px; cursor: pointer; font-family: inherit;
+  }
+  .presets button:hover { border-color: var(--navy); }
+
+  .engine { max-width: 1320px; margin: 26px auto 0; padding: 0 24px; }
+  .engine details { background: var(--white); border: 1px solid var(--lgray); border-radius: 10px; padding: 14px 18px; }
+  .engine summary { font-size: 15px; font-weight: 700; color: var(--navy); cursor: pointer; }
+  .engine .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 12px; }
+  @media (max-width: 900px) { .engine .grid { grid-template-columns: 1fr; } }
+  .engine .box { font-size: 13px; color: #43505F; line-height: 1.5; }
+  .engine .box h5 { color: var(--navy); font-size: 13px; margin-bottom: 4px; }
+  .engine table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .engine th { background: var(--navy); color: var(--white); padding: 6px; text-align: left; }
+  .engine td { border-bottom: 1px solid var(--lgray); padding: 5px 6px; }
+  footer { max-width: 1320px; margin: 20px auto 0; padding: 0 24px; font-size: 12px; color: #66707D; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Quantum Risk Prioritisation <span class="q">Engine</span></h1>
+  <div class="sub">Five weighted impact categories &middot; Confidentiality-Integrity-Availability (CIA) decomposition &middot; public-facing threat multiplier &middot; migration waves &mdash; every number traceable to a question.</div>
+</header>
+<div class="stripe"><span class="s1"></span><span class="s2"></span><span class="s3"></span></div>
+
+<div class="wrap">
+  <!-- ================= INPUT ================= -->
+  <div>
+    <div class="presets">
+      <button onclick="loadPreset('bank')">Payments Orchestration Service <b>(benchmark)</b></button>
+      <button onclick="loadPreset('api')">Public customer PII API</button>
+      <button onclick="loadPreset('hr')">Internal HR tool</button>
+      <button onclick="loadPreset('clear')">Start blank</button>
+    </div>
+
+    <div class="cards">
+
+      <!-- LoT -->
+      <div class="card" id="card-lot">
+        <div class="head"><h3>1. Loss of Trust</h3><span class="w">0.23</span></div>
+        <div class="desc">Reputational and brand impact, split 50/50 into customer detriment and reputational loss. Each rated across Confidentiality, Integrity, and Availability (CIA).</div>
+        <div class="rows">
+          <div class="lothead">
+            <span></span><span class="h">Confidentiality</span><span class="h">Integrity</span><span class="h">Availability</span><span></span>
+          </div>
+          <div class="lotrow">
+            <span class="lbl">Customer detriment</span>
+            <select id="lot-c-C" data-sub="cust"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="lot-c-I" data-sub="cust"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="lot-c-A" data-sub="cust"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <span class="val" id="lot-c-val">&mdash;</span>
+          </div>
+          <div class="lotrow">
+            <span class="lbl">Reputational loss</span>
+            <select id="lot-r-C" data-sub="rep"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="lot-r-I" data-sub="rep"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="lot-r-A" data-sub="rep"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <span class="val" id="lot-r-val">&mdash;</span>
+          </div>
+        </div>
+        <div class="bar"><i id="lot-bar" style="width:0%"></i></div>
+      </div>
+
+      <!-- Impacted Systems -->
+      <div class="card c-ds" id="card-imp">
+        <div class="head"><h3>2. Impacted Systems</h3><span class="w">0.21</span></div>
+        <div class="desc">Systemic reach &mdash; four yes/no indicators.</div>
+        <div class="rows">
+          <div class="row">
+            <label class="check"><input type="checkbox" id="imp-auth"><span>Provides authentication</span></label>
+            <span></span><span></span>
+            <span class="val">0.33</span>
+          </div>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="imp-crit"><span>Impacts critical services</span></label>
+            <span></span><span></span>
+            <span class="val">0.27</span>
+          </div>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="imp-priv"><span>Has privileged access</span></label>
+            <span></span><span></span>
+            <span class="val">0.20</span>
+          </div>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="imp-mod"><span>Can modify other services</span></label>
+            <span></span><span></span>
+            <span class="val">0.20</span>
+          </div>
+        </div>
+        <div class="bar"><i id="imp-bar" style="width:0%"></i></div>
+      </div>
+
+      <!-- Data Sensitivity -->
+      <div class="card c-ds" id="card-ds">
+        <div class="head"><h3>3. Data Sensitivity</h3><span class="w">0.21</span></div>
+        <div class="desc">Class of data the asset holds &mdash; three yes/no indicators.</div>
+        <div class="rows">
+          <div class="row">
+            <label class="check"><input type="checkbox" id="ds-high"><span>Highly restricted data present</span></label>
+            <span></span><span></span>
+            <span class="val">0.55</span>
+          </div>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="ds-sens"><span>Sensitive personal data present</span></label>
+            <span></span><span></span>
+            <span class="val">0.27</span>
+          </div>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="ds-per"><span>Personal data present</span></label>
+            <span></span><span></span>
+            <span class="val">0.18</span>
+          </div>
+        </div>
+        <div class="bar"><i id="ds-bar" style="width:0%"></i></div>
+      </div>
+
+      <!-- Financial Loss -->
+      <div class="card" id="card-fin">
+        <div class="head"><h3>4. Financial Loss</h3><span class="w">0.19</span></div>
+        <div class="desc">Direct monetary detriment, rated across CIA.</div>
+        <div class="rows">
+          <div class="ciahead">
+            <span class="h">Confidentiality</span><span class="h">Integrity</span><span class="h">Availability</span><span></span>
+          </div>
+          <div class="row">
+            <select id="fin-C"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="fin-I"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="fin-A"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <span class="val" id="fin-val">&mdash;</span>
+          </div>
+        </div>
+        <div class="bar"><i id="fin-bar" style="width:0%"></i></div>
+      </div>
+
+      <!-- Regulatory Censure -->
+      <div class="card" id="card-reg">
+        <div class="head"><h3>5. Regulatory Censure</h3><span class="w">0.16</span></div>
+        <div class="desc">Legal and compliance penalties, rated across CIA.</div>
+        <div class="rows">
+          <div class="ciahead">
+            <span class="h">Confidentiality</span><span class="h">Integrity</span><span class="h">Availability</span><span></span>
+          </div>
+          <div class="row">
+            <select id="reg-C"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="reg-I"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <select id="reg-A"><option value="0">Minor</option><option value="0.33">Moderate</option><option value="0.67">Major</option><option value="1">Extreme</option></select>
+            <span class="val" id="reg-val">&mdash;</span>
+          </div>
+        </div>
+        <div class="bar"><i id="reg-bar" style="width:0%"></i></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= RESULT ================= -->
+  <div class="result">
+    <div class="pad">
+      <div class="segrow">
+        <span style="font-weight:700;color:var(--navy)">Exposure</span>
+        <div class="seg" id="expSeg">
+          <button data-m="1.00" class="on">Internal-only &times;1.00</button>
+          <button data-m="1.30">Public-facing &times;1.30</button>
+        </div>
+        <span></span>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <div class="scoreline">
+        <div class="score">
+          <div class="num" id="scoreNum">0.0000</div>
+          <div class="lbl">Final risk score &nbsp;(impact &times; multiplier)</div>
+        </div>
+        <div class="badge" id="waveBadge">Wave &mdash;</div>
+      </div>
+
+      <div class="exp-line" id="expLine">No score yet.</div>
+
+      <div class="meter">
+        <div class="ruler" id="ruler">
+          <span class="z1"></span><span class="z2"></span><span class="z3"></span><span class="z4"></span>
+          <div class="pin" id="pin" style="left:0%"></div>
+        </div>
+        <div class="ticks"><span>0.00</span><span>&ge; 0.30 &nbsp;W3</span><span>&ge; 0.55 &nbsp;W2</span><span>&ge; 0.85 &nbsp;W1</span><span>max 1.30</span></div>
+      </div>
+
+      <div class="stack">
+        <div style="font-size:12px;color:#66707D">How the impact is composed (sums to the raw impact)</div>
+        <div class="bar">
+          <span id="st-lot" style="width:0%;background:var(--gold)"></span>
+          <span id="st-imp" style="width:0%;background:var(--navy)"></span>
+          <span id="st-ds" style="width:0%;background:var(--teal)"></span>
+          <span id="st-fin" style="width:0%;background:var(--saffron)"></span>
+          <span id="st-reg" style="width:0%;background:var(--red)"></span>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--gold)"></i>Loss of Trust</span>
+          <span><i style="background:var(--navy)"></i>Impacted Systems</span>
+          <span><i style="background:var(--teal)"></i>Data Sensitivity</span>
+          <span><i style="background:var(--saffron)"></i>Financial Loss</span>
+          <span><i style="background:var(--red)"></i>Regulatory Censure</span>
+          <span></span>
+        </div>
+      </div>
+
+      <div class="audit">
+        <h4>Audit trail &mdash; why this number</h4>
+        <ol id="auditList"></ol>
+        <div class="copy">
+          <button onclick="copyAudit()">Copy audit line</button>
+          <button class="ghost" onclick="printPage()">Print</button>
+        </div>
+        <div class="out" id="auditOut"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ENGINE EXPLAINED ================= -->
+<div class="engine">
+  <details>
+    <summary>The engine, explained &mdash; five factors, one formula, four waves</summary>
+    <div class="grid">
+      <div class="box">
+        <h5>Core model</h5>
+        <p style="font-family:Consolas,monospace;font-weight:700;color:var(--navy)">Risk = Impact &times; Likelihood</p>
+        <p>Impact is built from five weighted categories (weights sum to 1.0). Likelihood is a threat multiplier applied after impact: public-facing &times;1.30, internal-only &times;1.00. The final score maps to four migration waves.</p>
+      </div>
+      <div class="box">
+        <h5>CIA is applied consistently</h5>
+        <p>Every risk-relevant factor is judged across Confidentiality 0.42, Integrity 0.42, Availability 0.16. A leaf weight is always:</p>
+        <p style="font-family:Consolas,monospace;color:var(--navy)">category &times; sub-category &times; CIA</p>
+        <p>e.g. 0.23 &times; 0.50 &times; 0.42 = 0.0483 for customer detriment on confidentiality.</p>
+      </div>
+      <div class="box">
+        <h5>Ordinal rating scale</h5>
+        <table>
+          <tr><th>Rating</th><th>Value</th></tr>
+          <tr><td>Minor</td><td>0.00</td></tr>
+          <tr><td>Moderate</td><td>0.33</td></tr>
+          <tr><td>Major</td><td>0.67</td></tr>
+          <tr><td>Extreme</td><td>1.00</td></tr>
+        </table>
+        <p style="margin-top:6px">Turns qualitative judgement into arithmetic; judgement stays visible in the score.</p>
+      </div>
+      <div class="box">
+        <h5>Migration waves</h5>
+        <table>
+          <tr><th>Final score</th><th>Wave</th></tr>
+          <tr><td>&ge; 0.85</td><td>Wave 1 &mdash; immediate</td></tr>
+          <tr><td>&ge; 0.55</td><td>Wave 2 &mdash; medium term</td></tr>
+          <tr><td>&ge; 0.30</td><td>Wave 3 &mdash; planned</td></tr>
+          <tr><td>&lt; 0.30</td><td>Wave 4 &mdash; defer</td></tr>
+        </table>
+      </div>
+      <div class="box">
+        <h5>Why it is explainable</h5>
+        <p>Every score traces to a category/question. Every weight is explicit and editable in one configuration object. The same logic drives UI, bulk processing, and reporting. The model tunes without changing code structure.</p>
+      </div>
+      <div class="box">
+        <h5>Reference benchmark</h5>
+        <p>Payments Orchestration Service, default configuration:</p>
+        <p style="font-family:Consolas,monospace;color:var(--navy)">Impact 0.6265 &middot; Final 0.6265 &middot; Wave 2 (High)</p>
+        <p>This page reproduces that case exactly &mdash; load the benchmark preset.</p>
+      </div>
+    </div>
+  </details>
+</div>
+
+<footer>Quantum Risk Prioritisation Engine &middot; interactive scorer &middot; self-contained, works offline. Numbers are live and traceable.</footer>
+
+<script>
+  // ---- fixed model constants (single configuration object) ----
+  var MODEL = {
+    weights: { lot: 0.23, imp: 0.21, ds: 0.21, fin: 0.19, reg: 0.16 },
+    cia: { C: 0.42, I: 0.42, A: 0.16 },
+    lotSplit: { cust: 0.50, rep: 0.50 },
+    impInd: { auth: 0.33, crit: 0.27, priv: 0.20, mod: 0.20 },
+    dsInd: { high: 0.55, sens: 0.27, per: 0.18 },
+    mult: { internal: 1.00, pub: 1.30 },
+    bands: [
+      { min: 0.85, name: "Wave 1", sub: "Immediate migration", cls: "b-W1" },
+      { min: 0.55, name: "Wave 2", sub: "Medium term (High)", cls: "b-W2" },
+      { min: 0.30, name: "Wave 3", sub: "Planned", cls: "b-W3" },
+      { min: 0.00, name: "Wave 4", sub: "Defer", cls: "b-W4" }
+    ],
+    ordinal: { 0: "Minor", 0.33: "Moderate", 0.67: "Major", 1: "Extreme" }
+  };
+
+  function cia(dims) {
+    return MODEL.cia.C * dims.C + MODEL.cia.I * dims.I + MODEL.cia.A * dims.A;
+  }
+  function $id(id){ return document.getElementById(id); }
+
+  function readLot() {
+    var cust = { C: +$id("lot-c-C").value, I: +$id("lot-c-I").value, A: +$id("lot-c-A").value };
+    var rep  = { C: +$id("lot-r-C").value, I: +$id("lot-r-I").value, A: +$id("lot-r-A").value };
+    return {
+      cust: cust, rep: rep,
+      custScore: cia(cust), repScore: cia(rep),
+      val: MODEL.weights.lot * (MODEL.lotSplit.cust * cia(cust) + MODEL.lotSplit.rep * cia(rep))
+    };
+  }
+  function readImp() {
+    var s = ($id("imp-auth").checked ? MODEL.impInd.auth : 0)
+          + ($id("imp-crit").checked ? MODEL.impInd.crit : 0)
+          + ($id("imp-priv").checked ? MODEL.impInd.priv : 0)
+          + ($id("imp-mod").checked ? MODEL.impInd.mod : 0);
+    return { val: MODEL.weights.imp * s, raw: s };
+  }
+  function readDs() {
+    var s = ($id("ds-high").checked ? MODEL.dsInd.high : 0)
+          + ($id("ds-sens").checked ? MODEL.dsInd.sens : 0)
+          + ($id("ds-per").checked ? MODEL.dsInd.per : 0);
+    return { val: MODEL.weights.ds * s, raw: s };
+  }
+  function readFin() {
+    var d = { C: +$id("fin-C").value, I: +$id("fin-I").value, A: +$id("fin-A").value };
+    return { dims: d, cs: cia(d), val: MODEL.weights.fin * cia(d) };
+  }
+  function readReg() {
+    var d = { C: +$id("reg-C").value, I: +$id("reg-I").value, A: +$id("reg-A").value };
+    return { dims: d, cs: cia(d), val: MODEL.weights.reg * cia(d) };
+  }
+  function currentMultiplier() {
+    var btn = document.querySelector("#expSeg button.on");
+    return +btn.dataset.m;
+  }
+
+  function compute() {
+    var lot = readLot(), imp = readImp(), ds = readDs(), fin = readFin(), reg = readReg();
+    var impact = lot.val + imp.val + ds.val + fin.val + reg.val;
+    var mult = currentMultiplier();
+    var final = impact * mult;
+    return { lot: lot, imp: imp, ds: ds, fin: fin, reg: reg, impact: impact, mult: mult, final: final };
+  }
+
+  function band(final) {
+    for (var i = 0; i < MODEL.bands.length; i++) {
+      if (final >= MODEL.bands[i].min) return MODEL.bands[i];
+    }
+    return MODEL.bands[MODEL.bands.length - 1];
+  }
+
+  function fmt(v){ return v.toFixed(4); }
+
+  function render() {
+    var r = compute();
+    var b = band(r.final);
+
+    // input value cells & bars
+    $id("lot-c-val").textContent = r.lot.custScore.toFixed(2);
+    $id("lot-r-val").textContent = r.lot.repScore.toFixed(2);
+    $id("lot-bar").style.width = (r.lot.val / MODEL.weights.lot * 100).toFixed(1) + "%";
+    $id("imp-bar").style.width = (r.imp.val / MODEL.weights.imp * 100).toFixed(1) + "%";
+    $id("ds-bar").style.width = (r.ds.val / MODEL.weights.ds * 100).toFixed(1) + "%";
+    $id("fin-val").textContent = r.fin.cs.toFixed(2);
+    $id("fin-bar").style.width = (r.fin.val / MODEL.weights.fin * 100).toFixed(1) + "%";
+    $id("reg-val").textContent = r.reg.cs.toFixed(2);
+    $id("reg-bar").style.width = (r.reg.val / MODEL.weights.reg * 100).toFixed(1) + "%";
+
+    // headline
+    $id("scoreNum").textContent = fmt(r.final);
+    var badge = $id("waveBadge");
+    badge.className = "badge " + b.cls;
+    badge.innerHTML = b.name + " <small>" + b.sub + "</small>";
+
+    // explanation line
+    $id("expLine").innerHTML =
+      "<b>Raw impact</b> " + fmt(r.impact) +
+      " &nbsp;&middot;&nbsp; <b>Threat multiplier</b> &times;" + r.mult.toFixed(2) +
+      " &nbsp;&middot;&nbsp; <b>Final</b> " + fmt(r.final) +
+      " &nbsp;&middot;&nbsp; band <b>" + b.name + "</b> (" + (b.min < 0.85 ? "&ge; " + b.min.toFixed(2) : "&ge; 0.85") + ")";
+
+    // meter pin (scale 0 .. 1.3)
+    var pct = Math.min(100, Math.max(0, r.final / 1.30 * 100));
+    $id("pin").style.left = pct + "%";
+
+    // stacked bar widths (fraction of impact)
+    var segs = [
+      ["st-lot", r.lot.val], ["st-imp", r.imp.val], ["st-ds", r.ds.val],
+      ["st-fin", r.fin.val], ["st-reg", r.reg.val]
+    ];
+    segs.forEach(function(s){ $id(s[0]).style.width = (s[1] / r.impact * 100).toFixed(1) + "%"; });
+
+    // audit trail
+    var o = MODEL.ordinal;
+    var li = [];
+    li.push("Loss of Trust  (0.23 &times; 0.50 &times; CIA): " +
+      "customer " + o[r.lot.cust.C] + "/C, " + o[r.lot.cust.I] + "/I, " + o[r.lot.cust.A] + "/A &rarr; " + r.lot.custScore.toFixed(2) +
+      " &nbsp;|&nbsp; reputational " + o[r.lot.rep.C] + "/C, " + o[r.lot.rep.I] + "/I, " + o[r.lot.rep.A] + "/A &rarr; " + r.lot.repScore.toFixed(2) +
+      "<br><b>contribution " + fmt(r.lot.val) + "</b>");
+    li.push("Impacted Systems  (0.21): auth=" + (+$id("imp-auth").checked) + ", critical=" + (+$id("imp-crit").checked) +
+      ", privileged=" + (+$id("imp-priv").checked) + ", modify=" + (+$id("imp-mod").checked) +
+      " &rarr; raw " + r.imp.raw.toFixed(2) + " <br><b>contribution " + fmt(r.imp.val) + "</b>");
+    li.push("Data Sensitivity  (0.21): restricted=" + (+$id("ds-high").checked) + ", sensitive=" + (+$id("ds-sens").checked) +
+      ", personal=" + (+$id("ds-per").checked) + " &rarr; raw " + r.ds.raw.toFixed(2) + " <br><b>contribution " + fmt(r.ds.val) + "</b>");
+    li.push("Financial Loss  (0.19): " + o[r.fin.dims.C] + "/C, " + o[r.fin.dims.I] + "/I, " + o[r.fin.dims.A] + "/A &rarr; " + r.fin.cs.toFixed(2) +
+      " <br><b>contribution " + fmt(r.fin.val) + "</b>");
+    li.push("Regulatory Censure  (0.16): " + o[r.reg.dims.C] + "/C, " + o[r.reg.dims.I] + "/I, " + o[r.reg.dims.A] + "/A &rarr; " + r.reg.cs.toFixed(2) +
+      " <br><b>contribution " + fmt(r.reg.val) + "</b>");
+    li.push("Raw impact = " + fmt(r.impact) + " &nbsp;|&nbsp; Threat multiplier &times;" + r.mult.toFixed(2) +
+      " (public-facing) &nbsp;|&nbsp; <b>Final = " + fmt(r.final) + " &rarr; " + b.name + "</b>");
+    $id("auditList").innerHTML = li.map(function(t){ return "<li>" + t + "</li>"; }).join("");
+  }
+
+  function copyAudit() {
+    var r = compute(); var b = band(r.final); var o = MODEL.ordinal;
+    var lines = [
+      "QUANTUM RISK SCORE AUDIT LINE",
+      "Exposure: " + (r.mult === 1.30 ? "Public-facing (x1.30)" : "Internal-only (x1.00)"),
+      "Loss of Trust: cust " + o[r.lot.cust.C] + "/" + o[r.lot.cust.I] + "/" + o[r.lot.cust.A] +
+        ", rep " + o[r.lot.rep.C] + "/" + o[r.lot.rep.I] + "/" + o[r.lot.rep.A] + " -> " + fmt(r.lot.val),
+      "Impacted Systems: " + (+$id("imp-auth").checked) + "/" + (+$id("imp-crit").checked) + "/" +
+        (+$id("imp-priv").checked) + "/" + (+$id("imp-mod").checked) + " -> " + fmt(r.imp.val),
+      "Data Sensitivity: " + (+$id("ds-high").checked) + "/" + (+$id("ds-sens").checked) + "/" +
+        (+$id("ds-per").checked) + " -> " + fmt(r.ds.val),
+      "Financial Loss: " + o[r.fin.dims.C] + "/" + o[r.fin.dims.I] + "/" + o[r.fin.dims.A] + " -> " + fmt(r.fin.val),
+      "Regulatory Censure: " + o[r.reg.dims.C] + "/" + o[r.reg.dims.I] + "/" + o[r.reg.dims.A] + " -> " + fmt(r.reg.val),
+      "RESULT: impact " + fmt(r.impact) + " x " + r.mult.toFixed(2) + " = final " + fmt(r.final) + " -> " + b.name
+    ].join("\n");
+    var out = $id("auditOut");
+    out.style.display = "block";
+    out.textContent = lines;
+    if (navigator.clipboard) navigator.clipboard.writeText(lines);
+  }
+  function printPage(){ window.print(); }
+
+  // ---- presets ----
+  function setSel(id, v){ var el = $id(id); el.value = v; }
+  function setChk(id, v){ $id(id).checked = !!v; }
+
+  var PRESETS = {
+    bank: function() {
+      // Reproduces the reference benchmark: impact 0.6265, final 0.6265, Wave 2
+      setSel("lot-c-C", 1); setSel("lot-c-I", 1); setSel("lot-c-A", 1);
+      setSel("lot-r-C", 0); setSel("lot-r-I", 0.33); setSel("lot-r-A", 0);
+      setChk("imp-auth", true); setChk("imp-crit", true); setChk("imp-priv", true); setChk("imp-mod", false);
+      setChk("ds-high", false); setChk("ds-sens", true); setChk("ds-per", true);
+      setSel("fin-C", 0.33); setSel("fin-I", 0.33); setSel("fin-A", 0.67);
+      setSel("reg-C", 1); setSel("reg-I", 1); setSel("reg-A", 1);
+      setMult(1.00);
+    },
+    api: function() {
+      setSel("lot-c-C", 1); setSel("lot-c-I", 1); setSel("lot-c-A", 1);
+      setSel("lot-r-C", 1); setSel("lot-r-I", 0.67); setSel("lot-r-A", 1);
+      setChk("imp-auth", true); setChk("imp-crit", true); setChk("imp-priv", true); setChk("imp-mod", true);
+      setChk("ds-high", true); setChk("ds-sens", true); setChk("ds-per", true);
+      setSel("fin-C", 0.67); setSel("fin-I", 1); setSel("fin-A", 1);
+      setSel("reg-C", 1); setSel("reg-I", 1); setSel("reg-A", 1);
+      setMult(1.30);
+    },
+    hr: function() {
+      setSel("lot-c-C", 0); setSel("lot-c-I", 0); setSel("lot-c-A", 0.33);
+      setSel("lot-r-C", 0); setSel("lot-r-I", 0); setSel("lot-r-A", 0.33);
+      setChk("imp-auth", false); setChk("imp-crit", false); setChk("imp-priv", false); setChk("imp-mod", false);
+      setChk("ds-high", false); setChk("ds-sens", false); setChk("ds-per", true);
+      setSel("fin-C", 0); setSel("fin-I", 0); setSel("fin-A", 0.33);
+      setSel("reg-C", 0); setSel("reg-I", 0); setSel("reg-A", 0);
+      setMult(1.00);
+    },
+    clear: function() {
+      ["lot-c-C","lot-c-I","lot-c-A","lot-r-C","lot-r-I","lot-r-A"].forEach(function(id){ setSel(id, 0); });
+      ["fin-C","fin-I","fin-A","reg-C","reg-I","reg-A"].forEach(function(id){ setSel(id, 0); });
+      ["imp-auth","imp-crit","imp-priv","imp-mod","ds-high","ds-sens","ds-per"].forEach(function(id){ setChk(id, false); });
+      setMult(1.00);
+    }
+  };
+  function loadPreset(name){ PRESETS[name](); render(); }
+  function setMult(m) {
+    var btns = document.querySelectorAll("#expSeg button");
+    btns.forEach(function(b){ b.classList.toggle("on", +b.dataset.m === m); });
+  }
+
+  // ---- wire events ----
+  document.querySelectorAll("select").forEach(function(el){ el.addEventListener("change", render); });
+  document.querySelectorAll("input[type=checkbox]").forEach(function(el){ el.addEventListener("change", render); });
+  document.querySelectorAll("#expSeg button").forEach(function(b){ b.addEventListener("click", function(){ setMult(+b.dataset.m); render(); }); });
+
+  // ---- init ----
+  loadPreset("bank");
+</script>
+</body>
+</html>
