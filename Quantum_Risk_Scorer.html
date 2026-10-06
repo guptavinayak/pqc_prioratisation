@@ -138,6 +138,24 @@
   .engine th { background: var(--navy); color: var(--white); padding: 6px; text-align: left; }
   .engine td { border-bottom: 1px solid var(--lgray); padding: 5px 6px; }
   footer { max-width: 1320px; margin: 20px auto 0; padding: 0 24px; font-size: 12px; color: #66707D; }
+
+  .presets button.on { border-color: var(--gold); background: var(--gold); color: var(--white); }
+  .cards2 { margin-top: 4px; }
+  .presets2 { margin-bottom: 12px; }
+  .presets2 button { padding: 6px 10px; }
+  .compareBox { margin-top: 16px; border: 1px solid var(--lgray); border-radius: 10px; background: #FBFBF7; padding: 12px 14px; }
+  .compareBox.tie { background: #FFF3E8; border-color: var(--saffron); }
+  .cmpRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; flex-wrap: wrap; }
+  .cmpAsset { font-size: 13px; font-weight: 600; color: var(--navy); }
+  .cmpAsset b { font-size: 15px; }
+  .cmpRel { font-size: 16px; font-weight: 800; color: var(--saffron); }
+  .cmpVerdict { margin-top: 9px; font-size: 13px; line-height: 1.55; color: var(--dark); }
+  .cmpVerdict b { color: var(--navy); }
+  .cmpVerdict .who { font-weight: 700; color: var(--saffron); }
+  .cmp-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 10px; margin-left: 4px; vertical-align: 1px; }
+  .cmp-badge.b-high { background: var(--red); color: #fff; }
+  .cmp-badge.b-med { background: var(--saffron); color: #fff; }
+  .cmp-badge.b-low { background: var(--teal); color: #fff; }
 </style>
 </head>
 <body>
@@ -156,6 +174,7 @@
       <button onclick="loadPreset('b')">Asset B &mdash; Internal HR tool</button>
       <button onclick="loadPreset('m')">Medium example</button>
       <button onclick="loadPreset('clear')">Start blank</button>
+      <button id="cmpBtn" onclick="toggleCompare()">Compare two assets</button>
     </div>
 
     <div class="cards">
@@ -241,6 +260,8 @@
       </div>
 
     </div>
+
+    <div class="cards cards2" id="cards2" style="display:none"></div>
   </div>
 
   <!-- ================= RESULT ================= -->
@@ -252,6 +273,15 @@
           <div class="lbl">Display Score &nbsp;(0&ndash;100)</div>
         </div>
         <div class="badge" id="bandBadge">Band &mdash;</div>
+      </div>
+
+      <div class="compareBox" id="cvBox" style="display:none">
+        <div class="cmpRow">
+          <span class="cmpAsset" id="cvA1"></span>
+          <span class="cmpRel" id="cvRel"></span>
+          <span class="cmpAsset" id="cvA2"></span>
+        </div>
+        <div class="cmpVerdict" id="cvLine"></div>
       </div>
 
       <div class="exp-line" id="expLine">No score yet.</div>
@@ -338,6 +368,7 @@
           <tr><td>14.5&ndash;30</td><td>Low</td><td>36 months</td></tr>
         </table>
         <p style="margin-top:6px">Bands carry deadlines in writing, never labels alone. The Low band starts at 14.5, not 0: the ladder's floor rung is Minor, so the lowest score the model can produce is 0.145 &rarr; 14.5. No rated asset is ever scored risk-free.</p>
+        <p style="margin-top:8px"><b>Exact ties</b> are settled by the exposure rule: on an identical score, the public-facing application queues first. Public reach already earns a True Blast Radius inside the score; the exposure rule resolves the residual tie when Blast Radius and Data Sensitivity trade places.</p>
       </div>
       <div class="box">
         <h5>Why it is explainable</h5>
@@ -379,28 +410,43 @@
     return "Minor";
   }
 
-  function compute() {
-    var lotV   = +$id("lot").value;
-    var blastV = $id("blast").checked ? 1 : 0;
-    var dataV  = $id("data").checked  ? 1 : 0;
-    var finV   = +$id("fin").value;
-    var regV   = +$id("reg").value;
+  // ---- factor metadata (single source; also drives the second asset panel) ----
+  var FACTS = [
+    { key: "lot",   num: 1, title: "Loss of Trust",      w: "0.23", cls: "",       type: "ladder", desc: "Reputational and brand impact &mdash; what a compromise does to the relationship between the organization and the people who rely on it.", check: "" },
+    { key: "blast", num: 2, title: "Blast Radius",       w: "0.21", cls: "c-bin",  type: "binary", desc: "Systemic reach &mdash; how far the damage spreads through the estate once this asset is broken. Binary: a compromise either reaches past the asset or it does not.", check: "Reaches past itself (True&nbsp;=&nbsp;1)" },
+    { key: "data",  num: 3, title: "Data Sensitivity",   w: "0.21", cls: "c-bin",  type: "binary", desc: "The class of data the asset holds. Binary: either it is the kind an HNDL adversary would archive today to decrypt a decade from now, or it is not.", check: "HNDL-attractive data present (True&nbsp;=&nbsp;1)" },
+    { key: "fin",   num: 4, title: "Financial Loss",     w: "0.19", cls: "",       type: "ladder", desc: "Direct monetary detriment &mdash; what the incident costs in hard cash.", check: "" },
+    { key: "reg",   num: 5, title: "Regulatory Censure", w: "0.16", cls: "",       type: "ladder", desc: "Legal and compliance penalties &mdash; what regulators take in fines, enforcement actions, and loss of license to operate.", check: "" }
+  ];
+  var LADDER_OPTIONS = '<option value="0.25">Minor &mdash; 0.25</option><option value="0.5">Moderate &mdash; 0.50</option><option value="0.75">Major &mdash; 0.75</option><option value="1">Extreme &mdash; 1.00</option>';
+  var TIE_BREAKERS = "vendor readiness, migration feasibility, dependency complexity, and operational impact";
+  var compareOn = false;
+  var cards2Built = false;
 
-    var c = {
-      lot:   MODEL.weights.lot   * lotV,
-      blast: MODEL.weights.blast * blastV,
-      data:  MODEL.weights.data  * dataV,
-      fin:   MODEL.weights.fin   * finV,
-      reg:   MODEL.weights.reg   * regV
+  function values(pre) {
+    pre = pre || "";
+    return {
+      lotV:   +$id(pre + "lot").value,
+      blastV: $id(pre + "blast").checked ? 1 : 0,
+      dataV:  $id(pre + "data").checked  ? 1 : 0,
+      finV:   +$id(pre + "fin").value,
+      regV:   +$id(pre + "reg").value
     };
+  }
 
+  function compute(pre) {
+    pre = pre || "";
+    var v = values(pre);
+    var c = {
+      lot:   MODEL.weights.lot   * v.lotV,
+      blast: MODEL.weights.blast * v.blastV,
+      data:  MODEL.weights.data  * v.dataV,
+      fin:   MODEL.weights.fin   * v.finV,
+      reg:   MODEL.weights.reg   * v.regV
+    };
     var raw = c.lot + c.blast + c.data + c.fin + c.reg;
     var display = (raw / MODEL.maxBase) * 100;
-
-    return {
-      lotV: lotV, blastV: blastV, dataV: dataV, finV: finV, regV: regV,
-      c: c, raw: raw, display: display
-    };
+    return { v: v, c: c, lotV: v.lotV, blastV: v.blastV, dataV: v.dataV, finV: v.finV, regV: v.regV, raw: raw, display: display };
   }
 
   function band(display) {
@@ -413,20 +459,62 @@
   function fmtRaw(v){ return v.toFixed(4); }
   function fmtDisp(v){ return String(parseFloat(v.toFixed(4))); }
 
-  function render() {
-    var r = compute();
-    var b = band(r.display);
+  function paint(pre) {
+    pre = pre || "";
+    var r = compute(pre);
     var W = MODEL.weights;
+    $id(pre + "lot-bar").style.width   = (r.c.lot   / W.lot   * 100).toFixed(1) + "%";
+    $id(pre + "blast-bar").style.width = (r.c.blast / W.blast * 100).toFixed(1) + "%";
+    $id(pre + "data-bar").style.width  = (r.c.data  / W.data  * 100).toFixed(1) + "%";
+    $id(pre + "fin-bar").style.width   = (r.c.fin   / W.fin   * 100).toFixed(1) + "%";
+    $id(pre + "reg-bar").style.width   = (r.c.reg   / W.reg   * 100).toFixed(1) + "%";
+    $id(pre + "blast-val").textContent = r.blastV.toFixed(2);
+    $id(pre + "data-val").textContent  = r.dataV.toFixed(2);
+    return r;
+  }
 
-    // factor bars (share of that factor's own maximum)
-    $id("lot-bar").style.width   = (r.c.lot   / W.lot   * 100).toFixed(1) + "%";
-    $id("blast-bar").style.width = (r.c.blast / W.blast * 100).toFixed(1) + "%";
-    $id("data-bar").style.width  = (r.c.data  / W.data  * 100).toFixed(1) + "%";
-    $id("fin-bar").style.width   = (r.c.fin   / W.fin   * 100).toFixed(1) + "%";
-    $id("reg-bar").style.width   = (r.c.reg   / W.reg   * 100).toFixed(1) + "%";
+  function monthsOf(bl){ var m = bl.sub.match(/(\d+)/); return m ? m[1] : ""; }
 
-    $id("blast-val").textContent = r.blastV.toFixed(2);
-    $id("data-val").textContent  = r.dataV.toFixed(2);
+  function renderCompare() {
+    var a = compute(""), z = compute("2");
+    var ba = band(a.display), bz = band(z.display);
+    var tie = fmtRaw(a.raw) === fmtRaw(z.raw);
+    var aPublic = a.blastV === 1, zPublic = z.blastV === 1;
+
+    $id("cvA1").innerHTML = "Asset 1 <b>" + fmtDisp(a.display) + "</b> <span class=\"cmp-badge " + ba.cls + "\">" + ba.name + "</span>";
+    $id("cvA2").innerHTML = "Asset 2 <b>" + fmtDisp(z.display) + "</b> <span class=\"cmp-badge " + bz.cls + "\">" + bz.name + "</span>";
+    $id("cvRel").textContent = tie ? "=" : (a.display > z.display ? "\u25B6" : "\u25C0");
+
+    var box = $id("cvBox"), line;
+    if (tie) {
+      box.className = "compareBox tie";
+      var ctx = "Exact tie at " + fmtDisp(a.display) + " (" + ba.name + ", " + monthsOf(ba) + " months) \u2014 raw " + fmtRaw(a.raw) + " on both sides.";
+      if (aPublic && !zPublic) {
+        line = "<b>" + ctx + "</b> <span class=\"who\">Asset 1 queues first</span>: it is public-facing, so its Blast Radius is True (0.2100) against Asset 2's False (0.0000) \u2014 the scores collide because Asset 2's Data Sensitivity is True instead. Public reach wins the residual.";
+      } else if (!aPublic && zPublic) {
+        line = "<b>" + ctx + "</b> <span class=\"who\">Asset 2 queues first</span>: it is public-facing, so its Blast Radius is True (0.2100) against Asset 1's False (0.0000) \u2014 the scores collide because Asset 1's Data Sensitivity is True instead. Public reach wins the residual.";
+      } else if (aPublic && zPublic) {
+        line = "<b>" + ctx + "</b> Both assets are public-facing, so the exposure rule cannot separate them; the four operational tie-breakers decide: " + TIE_BREAKERS + ".";
+      } else {
+        line = "<b>" + ctx + "</b> Neither asset is public-facing, so the exposure rule does not apply; the four operational tie-breakers decide: " + TIE_BREAKERS + ".";
+      }
+      $id("cvLine").innerHTML = line;
+    } else {
+      box.className = "compareBox";
+      var hi = a.display > z.display ? a : z, lo = a.display > z.display ? z : a;
+      var hiB = band(hi.display), loB = band(lo.display);
+      var hiName = (hi === a) ? "Asset 1" : "Asset 2";
+      var loName = (lo === a) ? "Asset 1" : "Asset 2";
+      line = "Queue by score: <span class=\"who\">" + hiName + " first</span> \u2014 " + fmtDisp(hi.display) +
+             " (" + hiB.name + ") before " + loName + " " + fmtDisp(lo.display) + " (" + loB.name + "). The exposure rule operates only on an <b>exact tie</b>, never on an ordering by score \u2014 a public-facing asset is already ahead inside the score through its Blast Radius.";
+      $id("cvLine").innerHTML = line;
+    }
+  }
+
+  function render() {
+    var r = compute("");
+    var b = band(r.display);
+    paint("");
 
     // headline
     $id("scoreNum").textContent = fmtDisp(r.display);
@@ -468,6 +556,9 @@
     li.push("Raw = <b>" + fmtRaw(r.raw) + "</b> &nbsp;|&nbsp; Display = (" + fmtRaw(r.raw) +
             " &divide; 1.0) &times; 100 = <b>" + fmtDisp(r.display) + " &rarr; " + b.name + "</b> (" + b.sub + ")");
     $id("auditList").innerHTML = li.map(function(t){ return "<li>" + t + "</li>"; }).join("");
+
+    if (compareOn) { paint("2"); renderCompare(); $id("cvBox").style.display = "block"; }
+    else { $id("cvBox").style.display = "none"; }
   }
 
   function copyAudit() {
@@ -483,13 +574,79 @@
       "Display = (" + fmtRaw(r.raw) + " / 1.0) * 100 = " + fmtDisp(r.display),
       "Band: " + b.name + " -> " + b.sub,
       "No post-hoc multipliers applied."
-    ].join("\n");
+    ];
+    if (compareOn) {
+      var a = compute(""), z = compute("2");
+      var ba = band(a.display), bz = band(z.display);
+      lines.push("");
+      lines.push("COMPARE");
+      lines.push("  Asset 1: raw " + fmtRaw(a.raw) + " -> " + fmtDisp(a.display) + " (" + ba.name + ")");
+      lines.push("  Asset 2: raw " + fmtRaw(z.raw) + " -> " + fmtDisp(z.display) + " (" + bz.name + ")");
+      if (fmtRaw(a.raw) === fmtRaw(z.raw)) {
+        var ap = a.blastV === 1, zp = z.blastV === 1;
+        if (ap && !zp)      lines.push("  Exposure rule: Asset 1 (public-facing) queues first.");
+        else if (!ap && zp) lines.push("  Exposure rule: Asset 2 (public-facing) queues first.");
+        else                lines.push("  Exposure rule cannot separate; four operational tie-breakers decide: " + TIE_BREAKERS + ".");
+      } else {
+        lines.push("  Queued by score: " + (a.display > z.display ? "Asset 1" : "Asset 2") + " first.");
+      }
+    }
+    var txt = lines.join("\n");
     var out = $id("auditOut");
     out.style.display = "block";
-    out.textContent = lines;
-    if (navigator.clipboard) navigator.clipboard.writeText(lines);
+    out.textContent = txt;
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
   }
   function printPage(){ window.print(); }
+
+  // ---- compare two assets ----
+  function buildCards2() {
+    var c2 = $id("cards2");
+    var h = '<div class="presets presets2"><b style="font-size:13px;color:var(--navy)">Asset 2</b>' +
+      '<button onclick="applyPreset2(\'b\')">Load Asset B (internal)</button>' +
+      '<button onclick="applyPreset2(\'mirror\')">Mirror Asset 1</button>' +
+      '<button onclick="applyPreset2(\'blank\')">Blank</button></div>';
+    FACTS.forEach(function(f){
+      if (f.type === "ladder") {
+        h += '<div class="card"><div class="head"><h3>' + f.num + '. ' + f.title + '</h3><span class="w">' + f.w +
+             '</span></div><div class="desc">' + f.desc + '</div><div class="rows"><div class="row"><span class="lbl">Rated severity <span class="styletag">LADDER</span></span><select id="2' + f.key + '">' +
+             LADDER_OPTIONS + '</select></div></div><div class="bar"><i id="2' + f.key + '-bar" style="width:0%"></i></div></div>';
+      } else {
+        h += '<div class="card ' + f.cls + '"><div class="head"><h3>' + f.num + '. ' + f.title + '</h3><span class="w">' + f.w +
+             '</span></div><div class="desc">' + f.desc + '</div><div class="rows"><div class="row"><label class="check"><input type="checkbox" id="2' + f.key + '"><span>' + f.check +
+             '</span></label><span class="val" id="2' + f.key + '-val">0.00</span></div></div><div class="bar"><i id="2' + f.key + '-bar" style="width:0%"></i></div></div>';
+      }
+    });
+    c2.innerHTML = h;
+    c2.querySelectorAll("select").forEach(function(el){ el.addEventListener("change", render); });
+    c2.querySelectorAll("input[type=checkbox]").forEach(function(el){ el.addEventListener("change", render); });
+    c2.style.display = "block";
+    cards2Built = true;
+    applyPreset2("b");
+  }
+
+  function applyPreset2(name) {
+    if (name === "b") {
+      setSel("2lot", 0.25); setChk("2blast", false); setChk("2data", false); setSel("2fin", 0.25); setSel("2reg", 0.25);
+    } else if (name === "mirror") {
+      setSel("2lot", $id("lot").value); setChk("2blast", $id("blast").checked);
+      setChk("2data", $id("data").checked); setSel("2fin", $id("fin").value); setSel("2reg", $id("reg").value);
+    } else {
+      setSel("2lot", 0.25); setChk("2blast", false); setChk("2data", false); setSel("2fin", 0.25); setSel("2reg", 0.25);
+    }
+    render();
+  }
+
+  function toggleCompare() {
+    compareOn = !compareOn;
+    var c2 = $id("cards2");
+    if (compareOn && !cards2Built) { buildCards2(); }
+    c2.style.display = compareOn ? "block" : "none";
+    var btn = $id("cmpBtn");
+    btn.className = compareOn ? "on" : "";
+    btn.innerHTML = compareOn ? "Compare on &mdash; hide second asset" : "Compare two assets";
+    render();
+  }
 
   // ---- presets ----
   function setSel(id, v){ var el = $id(id); el.value = v; }
